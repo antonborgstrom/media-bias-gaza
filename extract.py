@@ -1,6 +1,7 @@
 import sqlite3
 import re
 import argparse
+import json
 
 # Step 2: Parse the text file and extract articles
 def parse_articles(file_path):
@@ -24,23 +25,31 @@ def parse_articles(file_path):
     
     for article in articles:
         # Extract source and date (found on the first line)
-        header_match = re.search(r'^(.*?), (\d{4}-\d{2}-\d{2}.*?)$', article.strip(), re.MULTILINE)
+        header_match = re.search(r'^(.*?), (\d{4}-\d{2}-\d{2})$', article.strip(), re.MULTILINE)
         if not header_match:
             continue
 
         source = header_match.group(1).strip()
         date = header_match.group(2).strip()
         
+        # Extract the page number(s)
+        page_match = re.search(r'^Sida\s([\d, ]+)$', article.strip(), re.MULTILINE)
+        if page_match:
+            page_numbers = [int(num) for num in page_match.group(1).replace(' ', '').split(',')]
+            page_json = json.dumps(page_numbers)
+        else:
+            page_json = json.dumps([])  # Empty JSON array if page numbers are not found
+
         # Extract the headline (first line of the article)
         headline_match = re.search(r'^(.*?)$', article.strip(), re.MULTILINE)
         headline = headline_match.group(1).strip() if headline_match else ""
         
-        # Extract the body: between "Publicerat på webb." and the last occurrence of "©"
-        body_start_pos = article.find("Publicerat på webb.")
+        # Extract the body: between "Publicerat i print." and the last occurrence of "©"
+        body_start_pos = article.find("Publicerat i print.")
         body_end_pos = article.rfind("©")
         
         if body_start_pos != -1 and body_end_pos != -1 and body_start_pos < body_end_pos:
-            body_content = article[body_start_pos + len("Publicerat på webb."):body_end_pos].strip()
+            body_content = article[body_start_pos + len("Publicerat i print."):body_end_pos].strip()
         else:
             body_content = ""  # If the pattern isn't found correctly, body remains empty
 
@@ -51,7 +60,7 @@ def parse_articles(file_path):
         url_match = re.search(r'(http[s]?://\S+)', article)
         url = url_match.group(1).strip() if url_match else ""
         
-        parsed_articles.append((source, date, headline, body, url))
+        parsed_articles.append((source, date, headline, body, url, page_json))
     
     return parsed_articles
 
@@ -63,8 +72,8 @@ def insert_articles_to_db(articles):
     for article in articles:
         try:
             cursor.execute('''
-                INSERT INTO articles (source, date, headline, body, url)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO articles (source, date, headline, body, url, page)
+                VALUES (?, ?, ?, ?, ?, ?)
             ''', article)
             # Print the headline of the inserted article
             print(f"Inserted article: {article[2]}")

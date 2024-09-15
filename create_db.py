@@ -12,6 +12,8 @@ def create_articles_table(db_path):
             processed BOOLEAN DEFAULT 0,
             source TEXT,
             date TEXT,
+            page TEXT,
+            sektion TEXT,
             headline TEXT,
             body TEXT,
             url TEXT
@@ -47,5 +49,42 @@ def create_bias_sentences_table(db_path):
     conn.commit()
     conn.close()
 
+# Funktion för att skapa tabellen words_count
+def create_words_count_table(db_path):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Skapa tabellen om den inte finns
+    cursor.execute('''CREATE TABLE IF NOT EXISTS words_count (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id INTEGER,
+        sentence TEXT,
+        matched_word TEXT,
+        target_group TEXT,
+        FOREIGN KEY(article_id) REFERENCES articles(id)
+    )''')
+    
+    conn.commit()
+    conn.close()
+
+# Funktion för att skapa tabellen emotive_words_count
+def create_emotive_words_count_table(db_path):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Skapa tabellen om den inte finns
+    cursor.execute('''CREATE TABLE IF NOT EXISTS emotive_words_count (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id INTEGER,
+        sentence TEXT,
+        matched_word TEXT,
+        target_group TEXT,
+        FOREIGN KEY(article_id) REFERENCES articles(id)
+    )''')
+    
+    conn.commit()
+    conn.close()
+
 create_articles_table('articles.db')
 create_bias_sentences_table('articles.db')
+create_emotive_words_count_table('articles.db')

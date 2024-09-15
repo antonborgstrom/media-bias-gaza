@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 class TargetGroup(str, Enum):
     palestinian = "Palestinian"
     israeli = "Israeli"
+    okänt = "Okänt"
 
 class MatchedType(str, Enum):
     dödade = "Dödade"
@@ -30,7 +31,7 @@ def fetch_articles(db):
     cursor = db.cursor()
     
     # Hämta alla artiklar
-    cursor.execute("SELECT id, body FROM articles WHERE id IN (SELECT id FROM articles ORDER BY RANDOM() LIMIT 500) AND processed != 1")
+    cursor.execute("SELECT id, body FROM articles WHERE processed != 1")
     articles = cursor.fetchall()
     
     return articles
@@ -43,14 +44,14 @@ def analyze_article(text: str, ai_client):
         Du kommer att få en nyhetsartikel om konflikten mellan Israel och Palestina.
         Identifiera alla meningar i artikeln som:
         1. Refererar till palestinier/gazabor eller israeler som dödats, mördats, slaktats, massakrerats, massmördats, etc.
-        2. Refererar till palestinier/gazabor eller israeler som kidnappats.
+        2. Refererar till palestinier/gazabor eller israeler som kidnappats eller fängslats.
         3. Refererar till antisemitism/judehat eller islamofobi/muslimhat.
         Målet är att återge alla sådana meningar enligt den bifogade strukturen och identifiera om meningen refererar till palestinier/gazabor eller israeler, respektive antisemetism eller islamofobi.
         Här är en beskrivning av alla prametrar:
         - sentence: Meningen som identifierats.
         - matched_type: Vilken av de tre kategorierna ovan som identifierats (dödade, kidnappade eller hat)
         - matched_word: Ord som används i meningen för att beskriva dödsfallen, kidnappningen eller hatet (t.ex. dödade, mördade, slaktade, kidnappade, gisslan, antisemitism, islamofobi, etc.).
-        - target_group: Gruppen som åsyftas i meningen (palestinier eller israeler).
+        - target_group: Gruppen som åsyftas i meningen (palestinier, israeler eller okänt).
         - bias_score: En partiskhetsbedömning från 1 till 10 som representerar hur känsloladdad eller partisk meningen är, där 1 är krasst beskrivande utan laddning eller värderande tonfall och 10 är emotionellt och värderingsmässigt laddat.
     '''
 
@@ -76,9 +77,6 @@ def store_sentence(db, article_id, sentence: ArticleSummary):
         VALUES (?, ?, ?, ?, ?, ?)''', 
         (article_id, sentence.sentence, sentence.matched_type, sentence.matched_word, sentence.target_group, sentence.bias_score))
 
-    # Update the processed column to 1 to avoid rerun 
-    cursor.execute(f"UPDATE articles SET processed = 1 WHERE id = ?", (article_id,))
-
     db.commit()
 
     print(f"Sentence: {sentence.sentence}\n")
@@ -92,7 +90,6 @@ def store_sentence(db, article_id, sentence: ArticleSummary):
 def analyze_articles():
 
     db = sqlite3.connect('articles.db')
-
     articles = fetch_articles(db)
 
     # Ladda miljövariabler från .env-filen
@@ -111,7 +108,12 @@ def analyze_articles():
 
         for sentence in returned_sentences.centences:
             store_sentence(db, article_id, sentence)
-    
+
+        # Update the processed column to 1 to avoid rerun
+        cursor = db.cursor()     
+        cursor.execute(f"UPDATE articles SET processed = 1 WHERE id = ?", (article_id,))
+        db.commit()
+
     db.close()
 
 # Kör programmet
